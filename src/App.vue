@@ -194,6 +194,14 @@ onUnmounted(() => {
 </script>
 
 <style>
+@font-face {
+  font-family: 'DSEG7 Classic';
+  src: url('./assets/fonts/DSEG7Classic-Regular.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
