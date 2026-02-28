@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd E:/ProgramLab/claude/TaxesTimer && npm run build 2>&1)",
+      "Bash(cd E:/ProgramLab/claude/TaxesTimer && npm run dev 2>&1)"
+    ]
+  }
+}
