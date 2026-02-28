@@ -232,7 +232,8 @@ html, body {
   height: 100dvh;
   background: #000;
   gap: min(8vw, 5vh);
-  padding: min(4vw, 2.5vh);
+  padding: min(2vw, 1.5vh);
+  padding-top: max(min(2vw, 1.5vh), env(safe-area-inset-top));
 }
 
 .display {
@@ -250,10 +251,10 @@ html, body {
 
 .digits {
   font-family: 'DSEG7 Classic', 'DSEG7Classic', monospace;
-  font-size: min(70vw, 60.7vh);
+  font-size: min(52vw, 62vh);
   color: #ff1111;
   line-height: 1;
-  letter-spacing: 0.05em;
+  letter-spacing: 0;
   user-select: none;
   text-shadow:
     1px 1px 0 #990000,
@@ -318,5 +319,14 @@ html, body {
   color: #fff;
   user-select: none;
   pointer-events: none;
+}
+
+@media (orientation: landscape) {
+  .digits {
+    font-size: min(52vw, 42vh);
+  }
+  .app {
+    padding-top: max(3vh, env(safe-area-inset-top));
+  }
 }
 </style>
