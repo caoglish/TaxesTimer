@@ -16,11 +16,14 @@
         <span class="btn-label">60s</span>
       </button>
     </div>
+    <div class="version">v{{ version }}</div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onUnmounted } from 'vue'
+
+const version = __APP_VERSION__
 
 const seconds = ref(30)
 const isRunning = ref(false)
@@ -249,6 +252,13 @@ html, body {
     2px 2px 0 #880000,
     3px 3px 0 #770000,
     4px 4px 10px rgba(0, 0, 0, 0.9);
+}
+
+.version {
+  font-size: min(3vw, 1.8vh);
+  color: #444;
+  letter-spacing: 0.1em;
+  user-select: none;
 }
 
 .buttons {
