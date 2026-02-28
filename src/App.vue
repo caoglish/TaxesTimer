@@ -27,19 +27,22 @@ const isRunning = ref(false)
 const isPaused = ref(false)
 const lastSetSeconds = ref(30)
 let timer = null
-const audioEls = {}
+let audioCtx = null
+const audioBuffers = {}
+let warmAudio = null  // HTML Audio 静音循环，保持 iOS 硬件唤醒
 
-function genWavDataUri(freq, type, duration, volume, decay, sr = 22050) {
+// 生成 WAV ArrayBuffer（用于 HTML Audio 和 decodeAudioData）
+function genWavArrayBuffer(freq, type, duration, volume, decay, sr = 22050) {
   const n = Math.floor(sr * duration)
-  const buf = new ArrayBuffer(44 + n * 2)
-  const v = new DataView(buf)
-  const str = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)) }
-  str(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true)
-  str(8, 'WAVE'); str(12, 'fmt ')
+  const ab = new ArrayBuffer(44 + n * 2)
+  const v = new DataView(ab)
+  const s = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)) }
+  s(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true)
+  s(8, 'WAVE'); s(12, 'fmt ')
   v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true)
   v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true)
   v.setUint16(32, 2, true); v.setUint16(34, 16, true)
-  str(36, 'data'); v.setUint32(40, n * 2, true)
+  s(36, 'data'); v.setUint32(40, n * 2, true)
   for (let i = 0; i < n; i++) {
     const t = i / sr
     const wave = type === 'square'
@@ -47,33 +50,44 @@ function genWavDataUri(freq, type, duration, volume, decay, sr = 22050) {
       : Math.sin(2 * Math.PI * freq * t)
     v.setInt16(44 + i * 2, Math.max(-1, Math.min(1, wave * volume * Math.exp(-t * decay))) * 0x7FFF, true)
   }
-  let bin = ''; new Uint8Array(buf).forEach(b => (bin += String.fromCharCode(b)))
+  return ab
+}
+
+function arrayBufToDataUri(ab) {
+  let bin = ''; new Uint8Array(ab).forEach(b => (bin += String.fromCharCode(b)))
   return 'data:audio/wav;base64,' + btoa(bin)
 }
 
 function initAudio() {
-  if (audioEls.click) return
+  if (audioCtx) return
+
+  // 1. HTML Audio 静音循环：解锁 iOS 硬件，并持续保活防止冷启动延迟
+  const silentAb = genWavArrayBuffer(440, 'sine', 0.5, 0.00001, 0)
+  warmAudio = new Audio(arrayBufToDataUri(silentAb))
+  warmAudio.loop = true
+  warmAudio.play().catch(() => {})
+
+  // 2. Web Audio 用于零延迟播放
+  audioCtx = new AudioContext()
+
+  // 3. 用 decodeAudioData 把 WAV 转成 AudioBuffer（异步，启动时就开始解码）
   const specs = {
-    click: [600,  'sine',   0.15, 0.5, 40],
-    tick:  [1100, 'sine',   0.12, 0.4, 50],
-    alarm: [880,  'square', 1.5,  0.5,  3],
+    click: genWavArrayBuffer(600,  'sine',   0.15, 0.5, 40),
+    tick:  genWavArrayBuffer(1100, 'sine',   0.12, 0.4, 50),
+    alarm: genWavArrayBuffer(880,  'square', 1.5,  0.5,  3),
   }
-  for (const [name, args] of Object.entries(specs)) {
-    const el = new Audio(genWavDataUri(...args))
-    el.load()
-    // 播完自动归位，下次 play() 无需 seek，消除延迟
-    el.addEventListener('ended', () => { el.currentTime = 0 })
-    // iOS 解锁
-    el.play().then(() => el.pause()).catch(() => {})
-    audioEls[name] = el
+  for (const [name, ab] of Object.entries(specs)) {
+    audioCtx.decodeAudioData(ab, buf => { audioBuffers[name] = buf })
   }
 }
 
 function playSound(name) {
-  const el = audioEls[name]
-  if (!el) return
-  // 已通过 ended 事件归位，直接 play() 无 seek 延迟
-  el.play().catch(() => {})
+  const buf = audioBuffers[name]
+  if (!audioCtx || !buf) return
+  const src = audioCtx.createBufferSource()
+  src.buffer = buf
+  src.connect(audioCtx.destination)
+  src.start(0)
 }
 
 function playClick() { playSound('click') }
@@ -96,7 +110,7 @@ const yellowLabel = computed(() => {
 })
 
 function startCountdown() {
-  initAudio() // 在用户手势中解锁 Audio 元素
+  initAudio() // 用户手势中解锁：HTML Audio 保活 + Web Audio 零延迟播放
   isRunning.value = true
   isPaused.value = false
   timer = setInterval(() => {
