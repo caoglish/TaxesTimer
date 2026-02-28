@@ -5,12 +5,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-npm run dev      # Start dev server (http://localhost:5173)
-npm run build    # Production build → dist/
-npm run preview  # Preview production build
+npm run dev               # Start dev server (http://localhost:5173/TaxesTimer/)
+npm run dev -- --host     # Expose to LAN for mobile testing
+npm run build             # Production build → dist/
+npm run preview           # Preview production build
 ```
 
 No test framework is configured.
+
+## Deployment
+
+- Hosted on **GitHub Pages**: https://caoglish.github.io/TaxesTimer/
+- Auto-deploys via `.github/workflows/deploy.yml` on every push to `master`
+- Vite `base` is set to `/TaxesTimer/` in `vite.config.js`
 
 ## Architecture
 
@@ -24,15 +31,26 @@ Single-page Vue 3 app — all logic lives in one file: `src/App.vue`.
 **Button behavior:**
 - Blue (30s): if already at 30s idle → start; otherwise → reset to 30s
 - Red (60s): if already at 60s idle → start; otherwise → reset to 60s
-- Yellow: running → pause; paused+full → start; paused+partial → reset to full; idle+full → start
+- Yellow: running → pause; paused+full → start; paused+partial → reset to full; idle+full → start; at 00 → reset to lastSetSeconds
 
-**Audio:** Web Audio API only — no audio files. Three synthesized sounds:
-- `playClick()` — button press feedback (600Hz sine, 80ms)
-- `playTick()` — periodic tick (1100Hz sine, 50ms) at start and every 10s
-- `playAlarm()` — countdown end (880Hz square, 1.2s)
+**Audio architecture (iOS-compatible):**
+- `initAudio()` called on first button tap (iOS requires user gesture)
+- A silent WAV loops via HTML Audio to keep iOS audio hardware warm (prevents cold-start delay)
+- Tone WAVs are generated as ArrayBuffers in JS, decoded via `decodeAudioData()` into `AudioBuffer`s
+- Playback uses `AudioBufferSourceNode.start(0)` — near-zero latency
+- Three sounds: `playClick()` 600Hz sine, `playTick()` 1100Hz sine, `playAlarm()` 880Hz square
 
-AudioContext is lazily initialized on first user gesture to satisfy mobile autoplay restrictions.
+**Display:**
+- DSEG7 Classic font bundled locally (`src/assets/fonts/DSEG7Classic-Regular.woff2`) from `dseg` npm package
+- `@font-face` declared in global `<style>` block in `App.vue`
+- Single `<span class="digits">` with red color (`#ff1111`) and 3D layered `text-shadow`
 
-**Display:** DSEG7 font loaded via CDN (`cdn.jsdelivr.net/npm/dseg@0.46.0`). Two overlaid `<span>` elements create the LED effect: dark background layer (`#3a0000`) + bright red foreground (`#ff1111`) with CSS glow.
+**Layout:**
+- Mobile-first, `100dvh`, `min()` clamps for all font/spacing sizes
+- Portrait: `font-size: min(52vw, 62vh)`; Landscape: `min(52vw, 42vh)` via `@media (orientation: landscape)`
+- `viewport-fit=cover` + `env(safe-area-inset-top)` for notch/browser-chrome handling
+- Blue and Red buttons are fixed squares (`min(32vw, 20vh)`); Yellow takes remaining width (`flex: 1`)
 
-**Layout:** Mobile-first, `100dvh`, `min()` clamps for all font/spacing sizes. Viewport meta disables user scaling.
+**Version:**
+- Defined in `package.json`, injected at build time via Vite `define: { __APP_VERSION__ }` in `vite.config.js`
+- Displayed at bottom of screen as `v0.1.1`
